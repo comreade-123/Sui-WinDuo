@@ -1,0 +1,298 @@
+{
+  "fold_boundary_deg": 95,
+  "static_max_output_deg": 179.999998470303,
+  "scan": [
+    {
+      "true_pitch": -180,
+      "accel_pitch": -0.0
+    },
+    {
+      "true_pitch": -175,
+      "accel_pitch": -5.0
+    },
+    {
+      "true_pitch": -170,
+      "accel_pitch": -10.0
+    },
+    {
+      "true_pitch": -165,
+      "accel_pitch": -15.0
+    },
+    {
+      "true_pitch": -160,
+      "accel_pitch": -20.0
+    },
+    {
+      "true_pitch": -155,
+      "accel_pitch": -25.0
+    },
+    {
+      "true_pitch": -150,
+      "accel_pitch": -30.0
+    },
+    {
+      "true_pitch": -145,
+      "accel_pitch": -35.0
+    },
+    {
+      "true_pitch": -140,
+      "accel_pitch": -40.0
+    },
+    {
+      "true_pitch": -135,
+      "accel_pitch": -45.0
+    },
+    {
+      "true_pitch": -130,
+      "accel_pitch": -50.0
+    },
+    {
+      "true_pitch": -125,
+      "accel_pitch": -55.0
+    },
+    {
+      "true_pitch": -120,
+      "accel_pitch": -60.0
+    },
+    {
+      "true_pitch": -115,
+      "accel_pitch": -65.0
+    },
+    {
+      "true_pitch": -110,
+      "accel_pitch": -70.0
+    },
+    {
+      "true_pitch": -105,
+      "accel_pitch": -75.0
+    },
+    {
+      "true_pitch": -100,
+      "accel_pitch": -80.0
+    },
+    {
+      "true_pitch": -95,
+      "accel_pitch": -85.0
+    },
+    {
+      "true_pitch": -90,
+      "accel_pitch": -90.0
+    },
+    {
+      "true_pitch": -85,
+      "accel_pitch": -85.0
+    },
+    {
+      "true_pitch": -80,
+      "accel_pitch": -80.0
+    },
+    {
+      "true_pitch": -75,
+      "accel_pitch": -75.0
+    },
+    {
+      "true_pitch": -70,
+      "accel_pitch": -70.0
+    },
+    {
+      "true_pitch": -65,
+      "accel_pitch": -65.0
+    },
+    {
+      "true_pitch": -60,
+      "accel_pitch": -60.0
+    },
+    {
+      "true_pitch": -55,
+      "accel_pitch": -55.0
+    },
+    {
+      "true_pitch": -50,
+      "accel_pitch": -50.0
+    },
+    {
+      "true_pitch": -45,
+      "accel_pitch": -45.0
+    },
+    {
+      "true_pitch": -40,
+      "accel_pitch": -40.0
+    },
+    {
+      "true_pitch": -35,
+      "accel_pitch": -35.0
+    },
+    {
+      "true_pitch": -30,
+      "accel_pitch": -30.0
+    },
+    {
+      "true_pitch": -25,
+      "accel_pitch": -25.0
+    },
+    {
+      "true_pitch": -20,
+      "accel_pitch": -20.0
+    },
+    {
+      "true_pitch": -15,
+      "accel_pitch": -15.0
+    },
+    {
+      "true_pitch": -10,
+      "accel_pitch": -10.0
+    },
+    {
+      "true_pitch": -5,
+      "accel_pitch": -5.0
+    },
+    {
+      "true_pitch": 0,
+      "accel_pitch": 0.0
+    },
+    {
+      "true_pitch": 5,
+      "accel_pitch": 5.0
+    },
+    {
+      "true_pitch": 10,
+      "accel_pitch": 10.0
+    },
+    {
+      "true_pitch": 15,
+      "accel_pitch": 15.0
+    },
+    {
+      "true_pitch": 20,
+      "accel_pitch": 20.0
+    },
+    {
+      "true_pitch": 25,
+      "accel_pitch": 25.0
+    },
+    {
+      "true_pitch": 30,
+      "accel_pitch": 30.0
+    },
+    {
+      "true_pitch": 35,
+      "accel_pitch": 35.0
+    },
+    {
+      "true_pitch": 40,
+      "accel_pitch": 40.0
+    },
+    {
+      "true_pitch": 45,
+      "accel_pitch": 45.0
+    },
+    {
+      "true_pitch": 50,
+      "accel_pitch": 50.0
+    },
+    {
+      "true_pitch": 55,
+      "accel_pitch": 55.0
+    },
+    {
+      "true_pitch": 60,
+      "accel_pitch": 60.0
+    },
+    {
+      "true_pitch": 65,
+      "accel_pitch": 65.0
+    },
+    {
+      "true_pitch": 70,
+      "accel_pitch": 70.0
+    },
+    {
+      "true_pitch": 75,
+      "accel_pitch": 75.0
+    },
+    {
+      "true_pitch": 80,
+      "accel_pitch": 80.0
+    },
+    {
+      "true_pitch": 85,
+      "accel_pitch": 85.0
+    },
+    {
+      "true_pitch": 90,
+      "accel_pitch": 90.0
+    },
+    {
+      "true_pitch": 95,
+      "accel_pitch": 85.0
+    },
+    {
+      "true_pitch": 100,
+      "accel_pitch": 80.0
+    },
+    {
+      "true_pitch": 105,
+      "accel_pitch": 75.0
+    },
+    {
+      "true_pitch": 110,
+      "accel_pitch": 70.0
+    },
+    {
+      "true_pitch": 115,
+      "accel_pitch": 65.0
+    },
+    {
+      "true_pitch": 120,
+      "accel_pitch": 60.0
+    },
+    {
+      "true_pitch": 125,
+      "accel_pitch": 55.0
+    },
+    {
+      "true_pitch": 130,
+      "accel_pitch": 50.0
+    },
+    {
+      "true_pitch": 135,
+      "accel_pitch": 45.0
+    },
+    {
+      "true_pitch": 140,
+      "accel_pitch": 40.0
+    },
+    {
+      "true_pitch": 145,
+      "accel_pitch": 35.0
+    },
+    {
+      "true_pitch": 150,
+      "accel_pitch": 30.0
+    },
+    {
+      "true_pitch": 155,
+      "accel_pitch": 25.0
+    },
+    {
+      "true_pitch": 160,
+      "accel_pitch": 20.0
+    },
+    {
+      "true_pitch": 165,
+      "accel_pitch": 15.0
+    },
+    {
+      "true_pitch": 170,
+      "accel_pitch": 10.0
+    },
+    {
+      "true_pitch": 175,
+      "accel_pitch": 5.0
+    },
+    {
+      "true_pitch": 180,
+      "accel_pitch": 0.0
+    }
+  ]
+}

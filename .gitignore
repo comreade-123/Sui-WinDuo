@@ -1,0 +1,86 @@
+# =====================================================================
+# WindowsDuo-EthanMaven / .gitignore
+# 说明：本仓库是纯 Arduino IDE 工程（firmware/WindowsDuo_EthanMaven/
+#      WindowsDuo_EthanMaven.ino），因此这里只忽略编译产物与本地垃圾，
+#      绝对不要忽略 *.ino、*.h、*.cpp 等源码文件。
+# =====================================================================
+
+# ---------- Arduino IDE / 编译产物 ----------
+build/
+*.bin
+*.elf
+*.map
+*.hex
+*.d
+*.o
+*.a
+*.su
+*.lst
+*.tmp
+
+# Arduino IDE 2.x / 旧版的本地索引与会话文件
+.arduino15/
+.arduinoIDE/
+*.arduino_sketch.json
+
+# 本地私密配置（Arduino 生态常见的 secrets 约定，不要提交任何密钥）
+arduino_secrets.h
+secrets.h
+
+# ---------- Python（PC 端脚本） ----------
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- 临时调试脚本（开发过程中产生，不要提交） ----------
+_tmp_*.py
+
+# ---------- 验证过程产物 ----------
+verification/_raw_*
+verification/demo_device_result*.json
+tools/__pycache__/
+
+# ---------- 本地录制 / 生成的采样数据 ----------
+sample_stream.jsonl
+# 如需忽略所有 .jsonl 采样文件，取消下一行注释：
+# *.jsonl
+
+# ---------- 编辑器 / IDE ----------
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# ---------- 操作系统垃圾 ----------
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---------- 参考项目解压目录 / 原始压缩包（仅本地查阅用，不提交） ----------
+_ref_winduo/
+WindowsDuo-main.zip
+
+# ---------- 固件改动前的手工备份 ----------
+*.bak
+*.bak-*
+*.ino.bak*
+
+# ---------- 编译输出 / 冒烟测试截图 ----------
+bin/
+smoke_*.png
+offscreen_result.png
+
+# ---------- 日志 ----------
+*.log
