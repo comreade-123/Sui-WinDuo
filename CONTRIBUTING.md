@@ -1,6 +1,6 @@
 # 贡献指南（CONTRIBUTING）
 
-感谢你愿意参与 **WindowsDuo-EthanMaven**！本文档说明如何提交 Issue、修改代码与发起 Pull Request。
+感谢你愿意参与 **Sui-WinDuo**！本文档说明如何提交 Issue、修改代码与发起 Pull Request。
 
 ## 一、可以贡献什么
 
@@ -15,8 +15,8 @@
 | --- | --- |
 | 固件 | Arduino IDE 2.x + `esp32 by Espressif Systems` 开发板支持包 |
 | 开发板 | ESP32-WROOM-32E（Maker-ESP32），备选 ESP32 Dev Module |
-| 库 | Adafruit SSD1306、Adafruit GFX Library、Adafruit MPU6050、Adafruit Unified Sensor、ArduinoJson 7.x |
-| PC 端 | Python 3.x + `pyserial`、`PyQt6`、`PyOpenGL` |
+| 库 | Adafruit SSD1306、Adafruit GFX Library、MPU6050_tockn、ArduinoJson 7.x |
+| PC 端 | Python 3.x + `pyserial`、`PyQt6`、`PyOpenGL`、`mss`、`Pillow`、`numpy` |
 
 详细的安装步骤见 [README.md](README.md) 第 4 节。
 

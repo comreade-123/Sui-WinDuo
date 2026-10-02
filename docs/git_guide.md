@@ -4,7 +4,7 @@
 并覆盖日常提交流程、打标签发布与常见错误处理。所有命令均为 **Windows PowerShell** 语法，在仓库根目录执行。
 
 > 仓库根目录示例：`D:\Deepseek-API-project\DSH\WinDuo-EthanMaven`
-> 下文出现的仓库名 `WindowsDuo-EthanMaven` 只是示例，你可以换成自己喜欢的名字。
+> 下文出现的仓库名 `Sui-WinDuo` 只是示例，你可以换成自己喜欢的名字。
 
 ## 目录
 
@@ -164,7 +164,7 @@ git check-ignore -v build
 git add .
 
 # 提交并写清楚信息
-git commit -m "chore: 初始化 WindowsDuo-EthanMaven 仓库"
+git commit -m "chore: 初始化 Sui-WinDuo 仓库"
 
 # 查看提交历史
 git log --oneline -n 5
@@ -185,7 +185,7 @@ git commit -m "docs: 补充 Git 操作指南"
 
 1. 登录 <https://github.com/comreade-123>。
 2. 右上角 **+** → **New repository**。
-3. **Repository name** 填 `WindowsDuo-EthanMaven`。
+3. **Repository name** 填 `Sui-WinDuo`。
 4. **Description** 可填：`ESP32 + MPU6050 笔记本屏幕开合角传感器（WindowsDuo 二创版）`。
 5. 选择 **Public**（开源）或 **Private**。
 6. **不要勾选** `Add a README file`、`Add .gitignore`、`Choose a license`——
@@ -193,7 +193,7 @@ git commit -m "docs: 补充 Git 操作指南"
 7. 点击 **Create repository**，复制页面上给出的 HTTPS 地址，形如：
 
    ```text
-   https://github.com/comreade-123/WindowsDuo-EthanMaven.git
+   https://github.com/comreade-123/Sui-WinDuo.git
    ```
 
 ---
@@ -202,7 +202,7 @@ git commit -m "docs: 补充 Git 操作指南"
 
 ```powershell
 # 关联远程仓库，命名为 origin
-git remote add origin https://github.com/comreade-123/WindowsDuo-EthanMaven.git
+git remote add origin https://github.com/comreade-123/Sui-WinDuo.git
 
 # 确认关联结果
 git remote -v
@@ -218,7 +218,7 @@ git push -u origin main
 地址写错了可以改：
 
 ```powershell
-git remote set-url origin https://github.com/comreade-123/WindowsDuo-EthanMaven.git
+git remote set-url origin https://github.com/comreade-123/Sui-WinDuo.git
 git remote remove origin   # 需要删除时使用
 ```
 
@@ -258,7 +258,7 @@ Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 ssh -T git@github.com
 
 # 5. 把远程地址切换为 SSH
-git remote set-url origin git@github.com:comreade-123/WindowsDuo-EthanMaven.git
+git remote set-url origin git@github.com:comreade-123/Sui-WinDuo.git
 ```
 
 **作用**：SSH 用密钥对认证，不需要每次输入凭据。

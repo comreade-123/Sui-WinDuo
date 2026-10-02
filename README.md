@@ -1,4 +1,4 @@
-# WindowsDuo-EthanMaven
+# Sui-WinDuo
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Platform: Arduino IDE](https://img.shields.io/badge/Platform-Arduino%20IDE-blue.svg)
@@ -31,7 +31,7 @@
 
 ## 1. 项目简介
 
-WindowsDuo-EthanMaven 是一个「笔记本屏幕开合角 → PC 端视觉反馈」的小型硬件 + 软件项目：
+Sui-WinDuo 是一个「笔记本屏幕开合角 → PC 端视觉反馈」的小型硬件 + 软件项目：
 
 - **采集**：ESP32 通过 I2C 读取 MPU6050 的加速度与角速度，用互补滤波（陀螺仪积分 + 加速度计倾角修正）解算出开合角。
 - **本地呈现**：SSD1306 128×64 OLED 实时显示角度大字、进度条、系统状态与当前模式；按键可切换模式、触发重新校准。
@@ -53,9 +53,10 @@ WindowsDuo-EthanMaven 是一个「笔记本屏幕开合角 → PC 端视觉反�
 
 固件设计要点（与 `firmware/WindowsDuo_EthanMaven/WindowsDuo_EthanMaven.ino` 一致）：
 
-- 全代码**不使用 `delay()`**，串口发送、OLED 刷新、按键扫描、IMU 采样、按键消抖全部基于 `millis()` 非阻塞调度。
-- 开机静止约 **3 秒**自动完成零漂校准；运行中在静止状态下缓慢跟踪残余零偏，抑制长时间漂移。
-- 输入输出全部经过限幅：`angle` 恒在 0.0 ~ 180.0 之间，保留一位小数。
+- 全代码**不使用 `delay()`**（仅初始化阶段允许极短延时），串口发送、OLED 刷新、按键扫描、IMU 采样、按键消抖全部基于 `millis()` 非阻塞调度。
+- I2C 引脚**自动识别**：开机扫描常见引脚组合，锁定两个模块都在线的那一对，并把结果打印在串口日志里。
+- 开机静止约 **5 秒**自动完成零漂校准（失败会自动重试，**12 秒**超时保护）；运行中在静止状态下跟踪残余零偏，抑制长时间漂移。
+- `angle` 是**有符号累积转角**：`0` = 开机基准姿态，正值 / 负值代表两个转动方向，保留一位小数，**可继续累积超过 ±180°**。
 - JSON 使用 ArduinoJson 7.x 序列化，不手工拼接浮点字符串。
 
 ---
@@ -73,7 +74,7 @@ WindowsDuo-EthanMaven 是一个「笔记本屏幕开合角 → PC 端视觉反�
 
 与原版的主要差异：
 
-| 维度 | 原版 WindowsDuo | 本版 WindowsDuo-EthanMaven |
+| 维度 | 原版 WindowsDuo | 本版 Sui-WinDuo |
 | --- | --- | --- |
 | 固件工程 | ESP-IDF 工程（具体实现以原仓库为准） | 纯 Arduino IDE 工程，唯一草图 `firmware/WindowsDuo_EthanMaven/WindowsDuo_EthanMaven.ino`，无需额外构建工具链 |
 | 本地显示 | 新版新增（原版方案以原仓库为准） | 新增 SSD1306 128×64 OLED 本地 UI：角度大字、进度条、状态行、模式行、校准进度界面 |
@@ -102,35 +103,38 @@ WindowsDuo-EthanMaven 是一个「笔记本屏幕开合角 → PC 端视觉反�
 
 ### 3.2 接线表
 
-MPU6050 与 SSD1306 **共用同一条 I2C 总线**（SDA=GPIO23、SCL=GPIO22），两个模块的 VCC 接 3V3、GND 与开发板共地。
+MPU6050 与 SSD1306 **共用同一条 I2C 总线**（默认 SDA=GPIO21、SCL=GPIO22；固件还会**自动识别**常见组合，见下方说明），两个模块的 VCC 接 3V3、GND 与开发板共地。
 
 | 模块 | 模块引脚 | 接到 ESP32 | 说明 |
 | --- | --- | --- | --- |
 | MPU6050 | VCC | 3V3 | 3.3V 供电 |
 | MPU6050 | GND | GND | 与开发板共地 |
-| MPU6050 | SDA | GPIO23 | 与 SSD1306 共用 I2C 数据线 |
-| MPU6050 | SCL | GPIO22 | 与 SSD1306 共用 I2C 时钟线 |
+| MPU6050 | SDA | GPIO21 或 GPIO23 | 与 SSD1306 共用 I2C 数据线（固件自动识别） |
+| MPU6050 | SCL | GPIO22 | 与 SSD1306 共用 I2C 时钟线（固件自动识别） |
 | MPU6050 | AD0 | GND | 拉低后 7 位地址为 0x68 |
 | SSD1306 128×64 | VCC | 3V3 | 3.3V 供电 |
 | SSD1306 128×64 | GND | GND | 与开发板共地 |
-| SSD1306 128×64 | SDA | GPIO23 | 与 MPU6050 共用 I2C 数据线 |
-| SSD1306 128×64 | SCL | GPIO22 | 与 MPU6050 共用 I2C 时钟线 |
+| SSD1306 128×64 | SDA | GPIO21 或 GPIO23 | 与 MPU6050 共用 I2C 数据线（固件自动识别） |
+| SSD1306 128×64 | SCL | GPIO22 | 与 MPU6050 共用 I2C 时钟线（固件自动识别） |
 | 按键 | 一端 | GPIO5 | 固件使用 `INPUT_PULLUP`，按下读到低电平 |
 | 按键 | 另一端 | GND | 按下时把 GPIO5 拉低 |
 
 补充说明：
 
-- **I2C 地址**：MPU6050 的 AD0 接地时为 `0x68`；SSD1306 模块默认 `0x3C`（少数模块为 `0x3D`，可改固件里的 `SSD1306_ADDR`）。
+- **I2C 引脚自动识别**：固件开机依次尝试 `GPIO21/22`、`GPIO23/22`、`GPIO22/21`、`23/19`、`19/18`、`18/19`、`32/33`、`33/32`、`25/26`、`26/27` 等组合，每个候选的探测结果（MPU6050 是否 ACK、OLED 是否 ACK）都会打印一行，最终锁定两个模块都在线的那一对并打印 `# I2C 锁定: SDA=GPIOxx SCL=GPIOxx`。**接 21/22 或 23/22 都能用，不需要为了接对引脚而改代码**；若一个组合都没找到，固件会回退到 `GPIO21/22` 并打印警告。
+- **器件身份校验**：MPU6050 通过 `WHO_AM_I`（寄存器 `0x75`）确认，避免「地址撞上别的器件」。
+- **I2C 地址**：MPU6050 的 AD0 接地时为 `0x68`；SSD1306 模块默认 `0x3C`（少数模块为 `0x3D`，固件两个地址都探测）。
 - **上拉电阻**：MPU6050 与 SSD1306 模块通常各自板载 I2C 上拉电阻，一般可直接并联到同一总线；若通信不稳定，再检查总线上拉是否过强或过弱。
-- **固件中的 I2C 时钟**为 400kHz（快速模式）。
+- **固件初始化时的 I2C 时钟**为 100kHz，以获得更稳的探测与通信。
 - 接线前请断开 USB 供电，避免带电插拔造成模块损坏。
 
 ### 3.3 连线示意（ASCII）
 
 ```
                     ESP32-WROOM-32E (Maker-ESP32)
-                    3V3    GND    GPIO23   GPIO22   GPIO5
+                    3V3    GND    SDA*     SCL*     GPIO5
                      |      |       |        |        |
+                    (* SDA/SCL 由固件自动识别，常见 GPIO21/22 或 GPIO23/22)
                      |      |       |        |        +--> 按键一端
                      |      |       |        |               （按键另一端 --> GND）
                      |      |       |        |
@@ -149,7 +153,7 @@ MPU6050 与 SSD1306 **共用同一条 I2C 总线**（SDA=GPIO23、SCL=GPIO22）�
 
     I2C 拓扑（一条总线，两个从机）：
 
-        ESP32（主机，SDA=GPIO23 / SCL=GPIO22 / 400kHz）
+        ESP32（主机，SDA/SCL 由固件自动识别；初始化 I2C 时钟 100kHz）
            |
            +-----------------------------+-----------------------------+
            |                                                           |
@@ -158,28 +162,30 @@ MPU6050 与 SSD1306 **共用同一条 I2C 总线**（SDA=GPIO23、SCL=GPIO22）�
 
 ### 3.4 安装朝向
 
-MPU6050 在笔记本上的贴装方向决定了角度符号与零点的物理含义。固件里预留了安装朝向矩阵
-`MPU_MOUNT_ROTATION_MATRIX`（3×3，行优先，默认单位矩阵），如果角度方向与预期相反，可只改这一处宏，
-常见朝向的取值已写在固件注释里。实际手感与方向需要在实物上确认，见 [第 10 节](#10-待实物验证)。
+MPU6050 在笔记本上的贴装方向决定了角度符号与零点的物理含义。固件用一个符号常量
+`HINGE_SIGN`（默认 `-1.0f`）决定「哪个转动方向输出正角度」：把板子朝**应当出现透视拉伸**的方向转动，
+串口里的 `angle` 必须为正；若正负相反，把 `HINGE_SIGN` 取反（`1.0f` ↔ `-1.0f`）即可。
+实际手感与方向需要在实物上确认，见 [第 10 节](#10-待实物验证)。
 
 ### 3.5 机械安装前提
 
-固件的开合角算法是 `angle = |wrap180(pitch - baseline)|`，即**角度映射为 1:1、不做任何缩放**：
-屏幕相对底座的夹角变化 ≈ MPU6050 的俯仰（pitch）变化。
-**0~180 满量程能走满的前提是「屏幕行程 : 传感器转角 ≈ 1:1」（k ≈ 1）。**
+固件的开合角算法是「陀螺仪积分得到的累积转角 × `HINGE_SIGN`」，即**角度映射为 1:1、不做任何缩放**：
+屏幕相对底座的夹角变化 ≈ MPU6050 绕转轴的转角变化。
+**行程两端能否读满、以及在多大范围内还准，取决于「屏幕行程 : 传感器转角 ≈ 1:1」（k ≈ 1）。**
 
-- **k ≈ 1**：合盖到全开的变化可以完整映射到 0~180。
-- **k < 1**：端点走不满。例如 k = 0.5 时，角度顶多读到约 **90~95°**，其后要靠陀螺仪积分继续增长，不再是加速度计直接测量。
+- **k ≈ 1**：合盖到全开的变化可以完整映射到输出角度上。
+- **k < 1**：行程端点走不满。例如 k = 0.5 时，角度顶多读到约 **90~95°**，其后要靠陀螺仪积分继续增长，不再是加速度计直接测量。
 - **90° 附近是加速度计的奇异点**：加速度计倾角在传感器自身 **±90°** 处存在折返边界（`atan2` 的天顶奇异）。
   独立验证以 **5° 步长扫描**得到的数值结果：折返边界出现在 **95°**（理论值 **90°**）；
   纠偏灵敏度 dM/dT 在 **0° / 30° / 60° / 85°** 为 **+1.000**，在 **90°** 为 **0.000**，在 **95° / 120° / 150° / 180°** 为 **-1.000**。
-  也就是说：**90° 之后靠陀螺仪积分撑过去**，静止时由静止锚定（零偏跟踪）把结果拉回真实值——这属于正常现象，不是故障。
+  也就是说：**90° 之后靠陀螺仪积分撑过去**——固件的「折返区隔离」会在夹角过大时临时冻结加速度计修正、完全交给陀螺积分，
+  等转回正常范围再自动恢复，因此不会出现「继续转动突然变号」的跳变；静止时由基准角跟随把结果拉回真实值。这属于正常现象，不是故障。
   在 1:1 假设下，跨 180° 行程的静态可达输出为 **180.00°**（仿真可达 **179.83°**）。
 
 **如果实测比例不是 1**，两种处理方式：
 
 1. **PC 端标定**：把收到的 `angle` 乘以 `1/k` 再驱动效果（例如实测 k = 0.5 就乘 2）。
-2. **更换安装朝向 / 测量轴**：按固件顶部的 `MPU_MOUNT_ROTATION_MATRIX` 宏调整（见 [3.4 安装朝向](#34-安装朝向)），
+2. **改符号 / 安装方向**：把固件顶部的 `HINGE_SIGN` 取反，或调整模块贴装方向（见 [3.4 安装朝向](#34-安装朝向)），
    让实际测量轴真正对应屏幕转轴。
 
 > 上述 95° 折返边界与灵敏度数值来自对倾角解算的**数值扫描验证**（5° 步长），**不是实物测试结果**；
@@ -216,15 +222,14 @@ MPU6050 在笔记本上的贴装方向决定了角度符号与零点的物理含
 | --- | --- | --- |
 | Adafruit SSD1306 | >= 2.5.9 | SSD1306 OLED 驱动 |
 | Adafruit GFX Library | >= 1.11.9 | 图形与字体基础库（SSD1306 依赖） |
-| Adafruit MPU6050 | >= 2.2.6 | MPU6050 驱动 |
-| Adafruit Unified Sensor | >= 1.1.14 | 传感器抽象层（Adafruit MPU6050 依赖） |
+| MPU6050_tockn | 以库管理器最新版为准 | MPU6050 驱动（本版采用；**不再需要 Adafruit MPU6050 / Adafruit Unified Sensor**） |
 | ArduinoJson | >= 7.0.0 | JSON 序列化输出 |
 
 说明：
 
-- 安装 **Adafruit MPU6050** 时，库管理器会提示一并安装依赖 **Adafruit BusIO** 与 **Adafruit Unified Sensor**，选择「全部安装」即可。
-- 上表版本为本项目验证过的**最低建议版本**；库管理器中的版本号会持续更新，**以库管理器显示的最新版为准**。
-- 固件使用的库内 API 均为 Adafruit 官方长期维护的公开接口，未使用任何私有或未公开函数。
+- **MPU6050_tockn** 是社区常用的轻量 MPU6050 驱动，只依赖 `Wire`；安装 Adafruit SSD1306 时，库管理器会提示一并安装 **Adafruit GFX Library** 与 **Adafruit BusIO**，选择「全部安装」即可。
+- 上表版本为本项目建议的**最低版本**；库管理器中的版本号会持续更新，**一律以库管理器显示的最新版为准**。
+- 固件只使用各库公开文档中记录的接口，未使用任何私有或未公开函数。
 
 ### 4.4 端口驱动
 
@@ -267,13 +272,18 @@ PC 端代码位于 `pc/` 目录，负责串口读取、协议解析、角度平�
 
 | 文件 | 职责 |
 | --- | --- |
+| [pc/duo_glass.py](pc/duo_glass.py) | 玻璃效果主程序：角度 → 浓度映射、截屏 / 着色器流水线、命令行参数 |
+| [pc/sui_winduo_app.py](pc/sui_winduo_app.py) | 终端风格 GUI（PyQt6），见 [6.6](#66-终端风格-guisui-winduo-app) |
 | [pc/winduo_protocol.py](pc/winduo_protocol.py) | 串口 JSON 行协议解析 |
 | [pc/serial_reader.py](pc/serial_reader.py) | 串口读取与角度输出入口 |
+| [pc/serial_reader_win.py](pc/serial_reader_win.py) | Windows 端串口读取实现 |
+| [pc/run_offline.py](pc/run_offline.py) | 离线运行入口 |
 | [pc/glass_overlay.py](pc/glass_overlay.py) | 玻璃模糊 / 悬浮效果叠加层 |
 | [pc/gl_shader_blur.py](pc/gl_shader_blur.py) | OpenGL 模糊着色器相关实现 |
 | [pc/simulate_device.py](pc/simulate_device.py) | 无实物时产生模拟串口数据 |
 | [pc/README_pc.md](pc/README_pc.md) | PC 端详细文档 |
 | [pc/tests/test_pipeline.py](pc/tests/test_pipeline.py) | PC 端流水线测试 |
+| [pc/tests/test_offline_reader.py](pc/tests/test_offline_reader.py) | 离线读取链路测试 |
 
 > 上表为文件职责概要，**具体实现与调用方式以对应源码和 [pc/README_pc.md](pc/README_pc.md) 为准**。
 
@@ -313,6 +323,34 @@ python pc\serial_reader.py
 （以及关闭透明效果 / 性能不足时的处理）请以 [pc/README_pc.md](pc/README_pc.md) 与 `pc/` 下源码为准。
 若效果异常，先确认系统「透明效果」已开启、显卡驱动为最新版。
 
+### 6.5 性能优化（实测）
+
+玻璃叠加层的开销主要来自三处。**本项目的开发机实测数据**如下：
+
+| 环节 | 优化前 | 优化后 | 说明 |
+| --- | --- | --- | --- |
+| GPU 着色器 | — | **1.22 ms/帧**（`taps=32`）；`taps=6` 时 0.31 ms | 着色器本身很轻，不是瓶颈 |
+| 截屏 | 2560×1600 全分辨率 **27.5 ms/帧** | **8.6 ms/帧（↓69%）** | 加 `--capture-scale 0.5` |
+| 纹理上传 | 13.3 ms | **0.2 ms（↓98%）** | 半分辨率纹理 |
+| 重绘策略 | 固定 60fps 无脑全屏重算 | 只在「浓度变化 > 0.0015」或「桌面截图更新」时才重绘；静止时几乎不重绘（实测 9 秒内 546 次 → 7 次，**↓98.7%**） | 这才是**最大的瓶颈** |
+
+- 新增 / 调整的参数：`--refresh-hz`（默认改为 **2.0**）、`--capture-scale`（默认 **0.5**，`1.0` = 原分辨率）。
+- 复现工具：[tools/bench_glass_gpu.py](tools/bench_glass_gpu.py)（用 `glFinish` 强制同步测真实 GPU 耗时）、
+  [tools/bench_overlay_cpu.py](tools/bench_overlay_cpu.py)。
+- **为什么可以半分辨率截屏**：画面本来就会被大幅模糊 + Vogel 盘采样，半分辨率在视觉上无法分辨，
+  因此 `--capture-scale 0.5` 基本是「白拿」的性能。
+
+### 6.6 终端风格 GUI（Sui-WinDuo App）
+
+[pc/sui_winduo_app.py](pc/sui_winduo_app.py) 提供一个**终端风格**的控制界面：等宽字体、方框字符边框、单色配色、无圆角无渐变，
+并使用仓库根目录的 [icon.png](icon.png) 作为窗口与托盘图标。
+
+```powershell
+.venv\Scripts\python.exe pc\sui_winduo_app.py
+```
+
+Python 依赖（venv 已备好）：**PyQt6 / PyOpenGL / mss / Pillow / pyserial / numpy**。
+
 ---
 
 ## 7. 串口协议
@@ -326,7 +364,7 @@ python pc\serial_reader.py
 
 | 字段 | 类型 | 取值 | 含义 |
 | --- | --- | --- | --- |
-| angle | number | 0.0 ~ 180.0，保留一位小数 | 屏幕开合角（度） |
+| angle | number | **有符号累积转角**，保留一位小数；`0` = 开机基准姿态，正值 / 负值代表两个转动方向，约 ±180 后仍可继续累积 | 屏幕相对开机基准姿态的转角（度） |
 | status | string | ok / calibrating / sensor_error / warming_up | 固件运行状态 |
 | mode | string | default / calibrate / debug | 当前工作模式 |
 | author | string | EthanMaven | 作者标识（固定值） |
@@ -337,11 +375,20 @@ python pc\serial_reader.py
 {"angle":45.2,"status":"ok","mode":"default","author":"EthanMaven"}
 ```
 
+反方向转动时 `angle` 为负值，例如：
+
+```json
+{"angle":-12.5,"status":"ok","mode":"default","author":"EthanMaven"}
+```
+
+**PC 端映射规则**：**正角度 0~90° 做透视拉伸，负角度保持清晰**；
+可选参数 `--neg-scale`（默认 `0.0`）可让负侧也有轻微效果。
+
 `status` 取值含义：
 
 | status | 含义 |
 | --- | --- |
-| warming_up | 开机预热，等待传感器稳定 |
+| warming_up | 开机预热 / 等待零漂校准成功（校准未成功前不会输出可信角度） |
 | calibrating | 正在执行零漂校准（此时不应移动设备） |
 | ok | 正常工作 |
 | sensor_error | 传感器或 OLED 初始化 / 通信异常 |
@@ -360,12 +407,21 @@ python pc\serial_reader.py
 
 | 附加字段 | 类型 | 出现条件 | 含义 |
 | --- | --- | --- | --- |
-| gyro | number | mode=debug | 当前开合方向的角速度（度/秒，两位小数） |
-| bias | number | mode=debug | 当前 Y 轴零偏估计（度/秒，三位小数） |
+| gyro | number | mode=debug | 开合方向角速度（度/秒，两位小数，已扣零偏） |
+| bias | number | mode=debug | 零偏估计（度/秒，三位小数） |
 | base | number | mode=debug | 开机基准俯仰角（度，两位小数） |
+| pitch | number | mode=debug | 当前绝对俯仰角（度，两位小数） |
+| virt | number | mode=debug | 未低通的相对角（度，两位小数，已应用 `HINGE_SIGN`） |
+| dev | number | mode=debug | 当前加速度计修正偏差（度，三位小数） |
+| conf | number | mode=debug | 倾角信度 0~1（三位小数） |
+| corr | number | mode=debug | 本次修正量（度，三位小数） |
+| frz | number | mode=debug | 折返区隔离是否生效（1 = 加速度计修正已被冻结） |
+| ax / ay / az | number | mode=debug | 加速度计三轴读数（g，三位小数） |
 | sp | number | mode=debug | 累计短按次数 |
 | lp | number | mode=debug | 累计长按次数 |
 | progress | number | 校准进行中 | 校准进度百分比（0~100） |
+
+> `pitch` / `virt` / `angle` 三者同号即说明符号链路正常；`corr` 恒为 0 或 `frz` 恒为 1 说明加速度计修正没有工作。
 
 ### 7.3 主机 → 设备命令（可选）
 
@@ -379,21 +435,23 @@ python pc\serial_reader.py
 
 ### 7.4 以 `#` 开头的注释行
 
-除 JSON 之外，固件还会在串口输出以 `#` 开头的人类可读提示行，例如开机校准开始 / 结束、模式切换提示。
+除 JSON 之外，固件还会在串口输出以 `#` 开头的人类可读提示行，例如引脚识别、器件 ID、校准开始 / 判定 / 完成。
 **PC 端解析时请忽略以 `#` 开头的行**，只处理以 `{` 开头的 JSON 行。示例（格式示意）：
 
 ```text
-# calibration started: boot
-# calibration done. gyro_bias(dps)=0.123,-0.045,0.010 baseline_pitch=-1.234
+# I2C 锁定: SDA=GPIO21 SCL=GPIO22
+# MPU6050 WHO_AM_I=0x68
+# 开始零漂校准: boot
+# 校准判定 varSum=0.1 (限25) meanAbsGyro=5.23 (限60.0) 样本=1000
+# 校准完成 零偏(dps)=...
 {"angle":0.0,"status":"ok","mode":"default","author":"EthanMaven"}
-# mode switched to debug
 ```
 
 ### 7.5 按键与开机行为
 
 | 行为 | 触发条件 | 效果 |
 | --- | --- | --- |
-| 开机自动校准 | 上电后 | 静止约 3 秒完成零漂校准，期间 `status` 为 `calibrating` |
+| 开机自动校准 | 上电后 | 静止约 **5 秒**完成零漂校准，期间 `status` 为 `calibrating`；失败会自动重试（**12 秒**超时保护） |
 | 短按 | 按下 50 ~ 800ms | 循环切换模式：default → calibrate → debug → default |
 | 长按 | 按下 ≥ 800ms | 立即触发一次重新零漂校准，并进入 calibrate 模式 |
 
@@ -404,37 +462,54 @@ python pc\serial_reader.py
 ## 8. 目录结构
 
 ```text
-WindowsDuo-EthanMaven/
+Sui-WinDuo/
 ├─ firmware/
-│  └─ WindowsDuo_EthanMaven/
-│     └─ WindowsDuo_EthanMaven.ino     # 纯 Arduino IDE 固件（唯一草图文件）
+│  ├─ WindowsDuo_EthanMaven/
+│  │  └─ WindowsDuo_EthanMaven.ino     # 纯 Arduino IDE 固件（唯一草图文件）
+│  └─ build-flash.bat                  # 本机 arduino-cli 编译 / 烧录辅助脚本
 ├─ pc/
+│  ├─ duo_glass.py                     # 玻璃效果主程序（角度映射 + 截屏 / 着色器流水线）
+│  ├─ sui_winduo_app.py                # 终端风格 GUI（PyQt6）
 │  ├─ winduo_protocol.py               # 串口 JSON 行协议解析
 │  ├─ serial_reader.py                 # 串口读取与角度输出入口
+│  ├─ serial_reader_win.py             # Windows 端串口读取实现
+│  ├─ run_offline.py                   # 离线运行入口
 │  ├─ glass_overlay.py                 # 玻璃模糊 / 悬浮效果叠加层
 │  ├─ gl_shader_blur.py                # OpenGL 模糊着色器相关实现
 │  ├─ simulate_device.py               # 无实物时的模拟串口数据源
 │  ├─ README_pc.md                     # PC 端详细文档
+│  ├─ *.png                            # 界面截图与效果对比图
 │  └─ tests/
-│     └─ test_pipeline.py              # PC 端流水线测试
+│     ├─ test_pipeline.py              # PC 端流水线测试
+│     ├─ test_offline_reader.py        # 离线读取链路测试
+│     └─ sample_stream.jsonl           # 测试用采样数据（已被 .gitignore 忽略）
 ├─ tools/
 │  ├─ verify_firmware.ps1              # 固件静态检查脚本
 │  ├─ verify_firmware_compile.ps1      # 离线编译预检脚本（可选开发工具）
 │  ├─ verify_stubs/*.h                 # 预检用最小桩头文件（Adafruit_Sensor/MPU6050/GFX/SSD1306/ArduinoJson）
+│  ├─ verify_pitch_range.py            # 倾角折返边界数值扫描
+│  ├─ bench_glass_gpu.py               # GPU / 着色器性能基准
+│  ├─ bench_overlay_cpu.py             # 叠加层 CPU 性能基准
 │  ├─ demo_device.py                   # 演示用设备数据脚本
+│  ├─ monitor.ps1 / diagnose-oled.ps1  # 串口监视 / OLED 诊断辅助脚本
+│  ├─ test_*.py / repro_*.py / probe_*.py / catch_*.py / trace_*.py   # 单项行为验证与复现脚本
+│  ├─ PORTING_NOTES.md                 # 移植笔记
 │  └─ README_verify.md                 # 校验脚本使用说明
 ├─ verification/
-│  └─ VERIFICATION_REPORT.md           # 本仓库验证记录（静态检查 / 仿真）
+│  ├─ VERIFICATION_REPORT.md           # 本仓库验证记录（静态检查 / 仿真）
+│  └─ pitch_range.json                 # 折返边界扫描结果数据
 ├─ docs/
 │  ├─ git_guide.md                     # Git 与 GitHub 操作指南
 │  └─ hardware_checklist.md            # 实物上电验证清单
+├─ _ref_winduo/                        # 上游 WindowsDuo 的参考副本（对照用，不参与构建）
+├─ icon.png                            # 应用图标（GUI 窗口 / 托盘）
 ├─ README.md
 ├─ LICENSE
 ├─ CONTRIBUTING.md
 └─ .gitignore
 ```
 
-> 注释为文件职责概要，**具体实现以对应源码为准**。
+> 注释为文件职责概要，**具体实现以对应源码为准**；`tools/`、`pc/` 中的同类脚本用通配形式合并展示。
 > `verification/VERIFICATION_REPORT.md` 记录的是静态检查与仿真验证结果，**不代表已完成实物测试**（见 [第 10 节](#10-待实物验证)）。
 
 > **关于 `tools/verify_stubs/` 与 `tools/verify_firmware_compile.ps1`**：这是**可选开发工具**，用于在没有网络、也没有安装 Arduino 库的环境下，
@@ -448,17 +523,17 @@ WindowsDuo-EthanMaven/
 ### 9.1 OLED 完全不亮
 
 1. 确认模块是 **I2C 接口**的 SSD1306 128×64（有些模块是 SPI 版本，引脚不同）。
-2. 确认地址是 **0x3C**：少数模块为 `0x3D`，需要改固件中的 `SSD1306_ADDR` 常量。
-3. 检查 **SDA 是否在 GPIO23、SCL 是否在 GPIO22**（两者接反是最常见原因），以及 VCC 是否接 3V3、GND 是否共地。
+2. 确认地址是 **0x3C**（少数模块为 `0x3D`）——固件会自动探测这两个地址，两个都不通则说明模块没有被识别。
+3. 检查 **SDA / SCL 是否接在你板子上真正的那对 I2C 引脚**（固件会自动扫描常见组合并逐个打印探测结果，看串口日志即可确认；接反是最常见原因），以及 VCC 是否接 3V3、GND 是否共地。
 4. 用 I2C 扫描程序确认总线上能看到 `0x3C` 与 `0x68` 两个地址；只有其中一个地址出现，说明另一个模块的接线或供电有问题。
 5. 若固件把 `oledReady` 判为失败，串口会持续输出 `sensor_error`，可据此判断是初始化失败而非显示问题。
 
 ### 9.2 角度缓慢漂移或静止时数值乱跑
 
-- 上电后请让设备**保持静止约 3 秒**，等待开机自动校准完成（`status` 从 `calibrating` 变为 `ok`）。
+- 上电后请让设备**保持静止约 5 秒**，等待开机自动校准完成（`status` 从 `calibrating` 变为 `ok`）。
 - 已开机运行很久后感觉零点偏了：**长按按键 ≥ 800ms** 触发一次重新零漂校准，此时必须保持静止。
-- 校准期间若设备被移动，固件会**拒绝本次校准结果并保留旧零偏**，串口会打印 `# calibration rejected: device was moving, keep previous bias`——静止后重新校准即可。
-- 校准有 **8000ms 超时保护**：若设备持续抖动，最多约 8 秒后结束本次校准并**沿用旧零偏**（属保护行为，不是故障）。
+- 判定依据打印为 `# 校准判定 varSum=... (限25) meanAbsGyro=... (限60.0) 样本=...`：设备被移动时本次校准会被**拒绝并自动重试**，校准成功前 `status` 一直为 `warming_up`——放稳设备等它成功即可。
+- 校准有 **12000ms 超时保护**：若设备持续抖动，最多约 12 秒后结束本次校准并重试（属保护行为，不是故障）。
 - 强震动、风扇气流、桌面晃动都会影响加速度计，尽量放在稳定的桌面上。
 
 ### 9.3 串口被占用 / 打不开 COM 口
@@ -483,7 +558,7 @@ WindowsDuo-EthanMaven/
 
 ### 9.6 编译报错找不到库
 
-按 [4.3](#43-安装依赖库) 的搜索名逐个安装库；`Adafruit_Sensor.h` 找不到时说明 **Adafruit Unified Sensor** 未安装，
+按 [4.3](#43-安装依赖库) 的搜索名逐个安装库；`MPU6050_tockn.h` 找不到时说明 **MPU6050_tockn** 未安装，
 `ArduinoJson.h` 找不到时说明 **ArduinoJson** 未安装或装成了 6.x 版本。
 
 ### 9.7 串口监视器里是乱码
@@ -492,8 +567,8 @@ WindowsDuo-EthanMaven/
 
 ### 9.8 角度方向与预期相反
 
-修改固件中的安装朝向矩阵 `MPU_MOUNT_ROTATION_MATRIX`（见 [3.4](#34-安装朝向)），固件注释里给出了几种常见朝向的取值。
-若角度**变化幅度**与屏幕实际夹角不成 1:1（感觉端点走不满 180），见 [3.5 机械安装前提](#35-机械安装前提)。
+把固件顶部的 `HINGE_SIGN` 取反（`1.0f` ↔ `-1.0f`），或调整模块贴装方向（见 [3.4](#34-安装朝向)）。
+若角度**变化幅度**与屏幕实际夹角不成 1:1（感觉端点走不满），见 [3.5 机械安装前提](#35-机械安装前提)。
 
 ---
 
@@ -507,10 +582,10 @@ WindowsDuo-EthanMaven/
 
 - [ ] I2C 总线上能同时扫描到 `0x3C`（SSD1306）与 `0x68`（MPU6050）。
 - [ ] 开机后 OLED 正常点亮并显示标题 / 主界面，无花屏、无重影。
-- [ ] 开机静止约 3 秒完成自动校准（`status` 由 `calibrating` 变为 `ok`）。
-- [ ] 校准超时保护：持续抖动时约 8 秒后结束本次校准并沿用旧零偏，串口打印 `# calibration rejected: ...`。
+- [ ] 开机静止约 5 秒完成自动校准（`status` 由 `calibrating` 变为 `ok`）；校准失败能自动重试，12 秒超时保护生效。
+- [ ] I2C 自动识别能锁定正确引脚组合（串口打印 `# I2C 锁定: SDA=GPIOxx SCL=GPIOxx`），与实物接线一致。
 - [ ] 串口实际输出速率约为 20 行/秒（每 50ms 一行），字段与取值符合 [第 7 节](#7-串口协议)。
-- [ ] `angle` 随屏幕开合在 0 ~ 180 之间**单调变化**，方向与安装方式一致，合盖 / 展开的端点符合预期。
+- [ ] `angle` 为**有符号累积转角**：正负方向与预期一致（对应 `HINGE_SIGN`），开合过程**单调变化**，可超过 ±180 继续累积。
 - [ ] 短按按键能依次切换 `default → calibrate → debug → default`。
 - [ ] 长按 ≥ 800ms 能触发重新零漂校准。
 - [ ] 长时间静止后角度漂移量在可接受范围内。
@@ -526,6 +601,7 @@ WindowsDuo-EthanMaven/
 
 - **作者**：EthanMaven
 - **GitHub**：<https://github.com/comreade-123>
+- **仓库**：<https://github.com/comreade-123/Sui-WinDuo>
 - **许可**：本项目以 **MIT License** 发布，详见 [LICENSE](LICENSE)（版权行：`Copyright (c) 2026 EthanMaven`）。
 - **致谢**：基于开源项目 **WindowsDuo**（作者 KaedeharaKazuha1029，<https://github.com/KaedeharaKazuha1029/WindowsDuo>）二次创作，
   感谢原作者的开源分享。
