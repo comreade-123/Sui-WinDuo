@@ -221,7 +221,20 @@ class AngleReader(threading.Thread):
         self.status = "connecting"
         self.fps = 0.0
         self.mode = ""
-        self._stop = False
+        # 注意：变量名不能叫 _stop —— threading.Thread 内部有个 _stop() 方法，
+        # 用 bool 覆盖它会让任何 join()/is_alive() 在 CPython 的
+        # _wait_for_tstate_lock 里调用 self._stop() 时抛
+        # TypeError: 'bool' object is not callable。
+        self._stop_flag = False
+
+    def stop(self):
+        """请求线程退出（供 GUI 关闭时调用）。"""
+        self._stop_flag = True
+
+    def join(self, timeout=None):
+        """安全的等待退出。这里保持 Thread.join 的语义，但先确保标志已置位。"""
+        self._stop_flag = True
+        return super().join(timeout)
 
     def get(self):
         with self.lock:
@@ -231,12 +244,12 @@ class AngleReader(threading.Thread):
         import serial
         pat = re.compile(r"\{[^}]*\}")
         n, t0 = 0, time.time()
-        while not self._stop:
+        while not self._stop_flag:
             try:
                 with serial.Serial(self.port, self.baud, timeout=1) as ser:
                     self._set("connected")
                     buf = b""
-                    while not self._stop:
+                    while not self._stop_flag:
                         buf += ser.readline()
                         if b"}" not in buf:
                             buf = buf[-128:] if len(buf) > 512 else buf
@@ -322,12 +335,14 @@ class ManualControl(threading.Thread):
 
 # ------------------------------------------------- capture thread
 class CaptureWorker(threading.Thread):
-    def __init__(self, region, scale=0.5):
+    def __init__(self, region, scale=1.0):
         super().__init__(daemon=True)
-        # 实测 mss.grab 在 2560x1600 上要 27ms/帧，是整个应用最重的操作。
-        # 由于最终画面本来就要被大幅模糊，截屏分辨率降到一半在视觉上几乎
-        # 无法分辨，但 BitBlt 的像素搬运量降到 1/4，卡顿感立刻消失。
-        # scale=1.0 可恢复原始分辨率。
+        # 注意：scale 必须保持 1.0（默认），即截图分辨率与屏幕物理分辨率一致。
+        # 这个效果本质是「全屏透视拉伸」，截屏分辨率一旦降低，GL 就会把它放大
+        # 铺满全屏，用户看到的是「窗口被放大后再拉伸」——画质损失明显。
+        # 实测降低截屏分辨率能把 BitBlt 从 27.5ms 降到 8.6ms，但那点 CPU 收益
+        # 远不值得牺牲清晰度；真要省 CPU 请调 --refresh-hz。
+        self.scale = scale
         self.region_orig = dict(region)
         s = max(0.1, min(1.0, float(scale)))
         self.region = {
@@ -632,11 +647,12 @@ def build_cfg():
                    help="how much a NEGATIVE angle contributes, 0..1 (default 0.0 = "
                         "fully clear; try 0.15 to make the response continuous through zero)")
     p.add_argument("--refresh-hz", type=float, default=2.0, help="screen capture rate (default 2Hz)")
-    p.add_argument("--capture-scale", type=float, default=0.5,
-                   help="downscale factor for screen capture, 0.1~1.0 (default 0.5). "
-                        "The glass blurs the image anyway, so a smaller capture is "
-                        "visually indistinguishable but much cheaper (BitBlt cost "
-                        "scales with pixels). Use 1.0 for the original resolution.")
+    p.add_argument("--capture-scale", type=float, default=1.0,
+                   help="downscale factor for screen capture, 0.1~1.0 (default 1.0 = native). "
+                        "Keep this at 1.0: the glass effect is a full-screen perspective "
+                        "stretch, so a reduced-resolution capture gets upscaled and the "
+                        "whole desktop looks soft/zoomed. Only lower it if you need to "
+                        "save CPU and can accept the softness.")
     p.add_argument("--max-tilt-deg", type=float, default=88.0, help="max glass tilt (default 88)")
     p.add_argument("--eye-dist-h", type=float, default=2.0, help="eye distance in screen heights")
     p.add_argument("--blur-spread", type=float, default=0.42, help="blur spread (smaller = clearer)")
