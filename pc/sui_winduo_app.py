@@ -407,7 +407,9 @@ class GlassController:
                 except Exception:
                     pass
         w, params = widget or self._widget, params or self.last_params
-        for key, attr, conv in (self.ATTRS if w is not None and params else ()):
+        if w is None or not params:
+            return
+        for key, attr, conv in self.ATTRS:
             if key in params and hasattr(w, attr):
                 try:
                     setattr(w, attr, conv(params[key]))
@@ -580,7 +582,7 @@ class MainWindow(QWidget):
 
         head = Panel("%s  ·  v%s  ·  %s  ·  %s" % (APP, VERSION, LICENSE, AUTHOR))
         self.chip_glass = label("[ GLASS ] STOPPED", DIM)
-        head.body.addLayout(row(label(SUB, DIM), _stretch(),
+        head.body.addLayout(row(label(SUB, DIM), None,
                                 self.chip_glass,
                                 btn("[ _ ]", self.showMinimized, "win", tip="minimize"),
                                 btn("[ X ]", self.close, "win", tip="quit"), spacing=10))
@@ -607,7 +609,7 @@ class MainWindow(QWidget):
         self.s_angle, self.s_dir, self.s_conc = label("", GREEN), label("", DIM), label("", FG)
         self.signal.body.addWidget(self.s_bar)
         self.signal.body.addWidget(self.s_scale)
-        self.signal.body.addLayout(row(self.s_angle, self.s_dir, _stretch(),
+        self.signal.body.addLayout(row(self.s_angle, self.s_dir, None,
                                        self.s_conc, spacing=16))
         root.addWidget(self.signal)
 
@@ -619,7 +621,7 @@ class MainWindow(QWidget):
         self.btn_link = btn("[ CONNECT ]", self._toggle_link)
         self.controls.body.addLayout(row(label("PORT", DIM), self.combo,
                                          btn("[ REFRESH ]", lambda: self._scan()),
-                                         self.btn_link, _stretch()))
+                                         self.btn_link, None))
         self.btn_primary = btn("[ START GLASS ]", self._toggle_glass, "primary", tip="F5")
         self.btn_primary.setProperty("running", "false")
         self.btn_primary.setMinimumHeight(32)
@@ -643,7 +645,7 @@ class MainWindow(QWidget):
         self.tuning = Panel("TUNING")
         self.btn_fold = btn("[ HIDE ]", self._fold)
         self.tuning.body.addLayout(row(label("realtime, applied to the live glass layer", DIM),
-                                       _stretch(), btn("[ RESET ]", self._reset_params),
+                                       None, btn("[ RESET ]", self._reset_params),
                                        self.btn_fold))
         self.tune_rows = QWidget()
         tgrid = QVBoxLayout(self.tune_rows)
@@ -675,7 +677,9 @@ class MainWindow(QWidget):
         menu = QMenu()
         for text, slot in (("[ SHOW WINDOW ]", self._restore),
                            ("[ TOGGLE GLASS ]", self._toggle_glass), ("[ QUIT ]", self._quit)):
-            menu.addAction(QAction(text, menu, triggered=slot))
+            act = QAction(text, menu)
+            act.triggered.connect(slot)
+            menu.addAction(act)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda r: self._restore() if r in (
             QSystemTrayIcon.ActivationReason.DoubleClick,
@@ -1005,11 +1009,6 @@ class MainWindow(QWidget):
         self._demo_run = bool(running)
         self._set_auto(True)
         self._sync_primary()
-
-
-def _stretch():
-    """（已由 row(None) 取代，保留占位以免外部引用报错。）"""
-    return None
 
 
 def make_app(argv):

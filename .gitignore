@@ -82,5 +82,10 @@ bin/
 smoke_*.png
 offscreen_result.png
 
+# ---------- GUI / 性能验证的临时截图（体积大，不入库） ----------
+pc/_shot_*.png
+pc/cmp_scale*.png
+pc/smoke_demo_*.png
+
 # ---------- 日志 ----------
 *.log
