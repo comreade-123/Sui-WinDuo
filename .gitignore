@@ -91,5 +91,13 @@ pc/_shot_*.png
 pc/cmp_scale*.png
 pc/smoke_demo_*.png
 
+# ---------- 用户提供的原始素材（体积大，仅本地使用） ----------
+# 动画用的是 docs/glass_seq/ 里压缩过的底图，这里不必入库
+素材/
+
+# ---------- 动画渲染中间产物 ----------
+docs/glass_seq/sequence_sheet.png
+tools/_*.png
+
 # ---------- 日志 ----------
 *.log
