@@ -38,6 +38,9 @@ from draw_hardware import draw_esp32, draw_mpu6050, draw_ssd1306, draw_button  #
 W, H = 1920, 1080
 FPS = 30
 TOTAL = 26.0
+# 与 PC 端参数保持一致（duo_glass.py 的默认值），视频里的浓度计算沿用同一公式
+ANGLE_OPEN = 90.0
+DEADBAND = 1.0
 ROOT = Path(__file__).resolve().parent.parent
 SEQ = ROOT / "docs" / "glass_seq"
 FFMPEG = [r"D:\ffmpeg\ffmpeg-6.1.1-essentials_build\bin\ffmpeg.exe", "ffmpeg"]
@@ -143,6 +146,58 @@ def paste(img, layer, xy, scale=1.0, alpha=1.0):
     img.paste(layer, (int(xy[0]), int(xy[1])), layer)
 
 
+# ---------------- OLED 屏幕内容（实时绘制，按固件布局） ----------------
+def oled_screen(w, h, screen="main", angle=0, pct=0, status="ok", mode="STD",
+                calib_pct=0, glow=1.0):
+    """把固件 drawMainScreen() / drawCalibrationScreen() 的画面按任意尺寸画出来。
+
+    之所以要"实时"画而不是贴一张静态图：用户指出接线时 OLED 平面没有动态。
+    这里以 128x64 逻辑坐标为准（字号 1 = 6x8、字号 3 = 18x24），
+    按 sc = w/128 等比缩放，因此任何尺寸下布局都与固件一致。
+    """
+    K = 4                                   # 超高分辨率绘制，缩小后文字才锐利
+    W2, H2 = w * K, h * K
+    im = Image.new("RGBA", (W2, H2), (5, 7, 10, 255))
+    d = ImageDraw.Draw(im)
+    sc = W2 / 128.0
+    g = min(1.0, max(0.0, glow))
+    ON = (176, 238, 255, int(255 * g))
+    DIMC = (116, 196, 228, int(255 * g * 0.8))
+
+    def put(lx, ly, text, size, color):
+        d.text((lx * sc, ly * sc), text, font=F("consola.ttf", max(7, int(size * 8 * sc))),
+               fill=color)
+
+    if screen == "main":
+        put(0, 0, "WinDuo %s" % mode, 1, ON)
+        d.line([(0, 10 * sc), (W2, 10 * sc)], fill=DIMC, width=max(1, int(sc)))
+        atxt = str(int(round(angle)))
+        if len(atxt) < 4:
+            atxt = " " * (4 - len(atxt)) + atxt
+        put(0, 14, atxt, 3, ON)
+        put(82, 24, "deg", 1, DIMC)
+        by0, by1 = 44 * sc, 52 * sc
+        d.rectangle([0, by0, W2 - 1, by1], outline=DIMC, width=max(1, int(sc)))
+        # 填充起点要留出边框内缩，保证 x1 >= x0（进度为 0 时不能倒挂）
+        x0 = 2 * sc
+        fw = (W2 - 1) * max(0.0, min(1.0, pct / 100.0))
+        if fw > x0 + 1:
+            d.rectangle([x0, by0 + 2 * sc, fw, by1 - 2 * sc], fill=ON)
+        put(0, 55, "S:%s  %d%%" % (status, pct), 1, ON)
+    else:
+        put(0, 0, "Calibrating gyro...", 1, ON)
+        put(0, 12, "Keep device still", 1, DIMC)
+        put(22, 26, str(int(calib_pct)), 3, ON)
+        put(96, 34, "%", 1, ON)
+        by0, by1 = 52 * sc, 60 * sc
+        d.rectangle([0, by0, W2 - 1, by1], outline=DIMC, width=max(1, int(sc)))
+        x0 = 2 * sc
+        fw = (W2 - 1) * max(0.0, min(1.0, calib_pct / 100.0))
+        if fw > x0 + 1:
+            d.rectangle([x0, by0 + 2 * sc, fw, by1 - 2 * sc], fill=ON)
+    return im.resize((w, h), Image.LANCZOS)
+
+
 # ---------------- 素材 ----------------
 class Assets:
     def __init__(self):
@@ -179,9 +234,28 @@ class Assets:
             self._small[a] = g.resize((820, 461), Image.LANCZOS)
 
         self.hw = {}
-        for n in ("esp32", "mpu6050", "ssd1306_main", "ssd1306_calib", "button"):
+        for n in ("esp32", "mpu6050", "ssd1306_blank", "button"):
             p = SEQ / ("hw_%s.png" % n)
             self.hw[n] = Image.open(p).convert("RGBA") if p.exists() else None
+        # OLED 屏幕区域（相对空屏图层）—— 用来把实时绘制的屏幕内容贴到正确位置
+        self.oled_meta = None
+        mp = SEQ / "oled_meta.json"
+        if mp.exists():
+            import json
+            self.oled_meta = json.load(open(mp, encoding="utf-8"))
+
+    def oled_scaled(self, scale, screen="main", angle=0, pct=0, status="ok",
+                    mode="STD", calib_pct=0, glow=1.0):
+        """返回 (缩放后的空屏图层, 屏幕区矩形) —— 屏幕内容另行实时绘制。"""
+        base = self.hw.get("ssd1306_blank")
+        if base is None or not self.oled_meta:
+            return None, None
+        lay = base.resize((max(1, int(base.width * scale)),
+                           max(1, int(base.height * scale))), Image.LANCZOS)
+        sx, sy, sw, sh = self.oled_meta["screen"]
+        rect = (int(round(sx * scale)), int(round(sy * scale)),
+                max(1, int(round(sw * scale))), max(1, int(round(sh * scale))))
+        return lay, rect
 
     @staticmethod
     def _load(p, size):
@@ -201,6 +275,29 @@ class Assets:
         i = min(range(len(self.tilts)), key=lambda k: abs(self.tilts[k] - tilt))
         return (self._small if small else self._big)[self.tilts[i]]
 
+    def blend(self, tilt, small=False):
+        """按倾角在相邻两档之间线性插值 —— 16 档直接切换会一跳一跳的，
+        插值后倾角连续变化时画面也连续，这是"帧数不够"的根治办法。"""
+        if not self.tilts:
+            return self.desktop
+        ts = self.tilts
+        if tilt <= ts[0]:
+            return self.nearest(tilt, small)
+        if tilt >= ts[-1]:
+            return self.nearest(tilt, small)
+        for i in range(len(ts) - 1):
+            if ts[i] <= tilt <= ts[i + 1]:
+                span = ts[i + 1] - ts[i]
+                u = 0.0 if span <= 0 else (tilt - ts[i]) / span
+                a = (self._small if small else self._big)[ts[i]]
+                b = (self._small if small else self._big)[ts[i + 1]]
+                if u <= 0.002:
+                    return a
+                if u >= 0.998:
+                    return b
+                return Image.blend(a, b, u)
+        return self.nearest(tilt, small)
+
 
 # ================================================================ 场景 1 硬件连接
 def sc_wiring(img, d, t, T, A):
@@ -212,7 +309,6 @@ def sc_wiring(img, d, t, T, A):
     #   下方 758..1020 ：接线表（左） / 总线地址卡片（右）
     esp = A.hw["esp32"]
     mpu = A.hw["mpu6050"]
-    oled = A.hw["ssd1306_main"]
 
     # OLED 尺寸要给足：固件字号 1 只有 6x8 像素，缩太小屏幕上 "WinDuo STD"
     # 那行就糊成一团，观众认不出显示内容（上一版就是这个毛病）
@@ -226,7 +322,32 @@ def sc_wiring(img, d, t, T, A):
     a3 = seg(t, 0.6, 1.05, "out")
     paste(img, esp, (e_pos[0] + (1 - a1) * -70, e_pos[1]), e_s, a1)
     paste(img, mpu, (m_pos[0] + (1 - a2) * 70, m_pos[1]), m_s, a2)
-    paste(img, oled, (o_pos[0] + (1 - a3) * 70, o_pos[1]), o_s, a3)
+
+    # ---- OLED：模块本体 + 实时绘制的屏幕内容 ----
+    # 用户指出"接线时 OLED 平面上的动态效果也没有"，所以屏幕不是静态贴图：
+    # 先播校准界面（进度 0->100），再切到主界面，角度数字持续滚动。
+    oled_lay, srect = A.oled_scaled(o_s, screen="main")
+    if oled_lay is not None:
+        ox = o_pos[0] + (1 - a3) * 70
+        oy = o_pos[1]
+        paste(img, oled_lay, (ox, oy), 1.0, a3)
+        sx, sy, sw, sh = srect
+        px_ = int(round(ox + sx))
+        py_ = int(round(oy + sy))
+        # 阶段 1：开机校准（0.4s 起，约 2.2s 走完 0->100）
+        calib_p = clamp(seg(t, 0.4, 2.6, "inout"))
+        # 阶段 2：校准完成后进入主界面，角度数字滚动
+        main_gate = seg(t, 2.9, 3.3, "out")
+        if main_gate < 1.0 and calib_p > 0:
+            scr = oled_screen(sw, sh, screen="calib", calib_pct=calib_p * 100,
+                              glow=clamp(a3 * (0.5 + 0.5 * calib_p)))
+            img.paste(scr, (px_, py_), scr)
+        if main_gate > 0:
+            ang_demo = 42 + 9 * math.sin((t - 2.9) * 0.9)
+            scr = oled_screen(sw, sh, screen="main", angle=ang_demo,
+                              pct=clamp(ang_demo / 88.0) * 100, status="ok",
+                              mode="STD", glow=a3 * main_gate)
+            img.paste(scr, (px_, py_), scr)
 
     # 模块名（左对齐到模块左上，统一小字）
     if a1 > 0.5:
@@ -241,7 +362,7 @@ def sc_wiring(img, d, t, T, A):
         p = seg(t, 0.7, 1.15, "out")
         e_mid = e_pos[1] + esp.height * e_s * 0.52
         m_mid = m_pos[1] + mpu.height * m_s * 0.55
-        o_mid = o_pos[1] + oled.height * o_s * 0.52
+        o_mid = o_pos[1] + (oled_lay.height if oled_lay is not None else 300) * 0.52
         bx = 700                                  # 垂直主干的位置
         d.line([(e_pos[0] + esp.width * e_s + 6, e_mid), (bx, e_mid)], fill=ACCENT, width=1)
         d.line([(bx, min(m_mid, o_mid)), (bx, max(m_mid, o_mid))], fill=ACCENT, width=1)
@@ -366,7 +487,12 @@ def sc_stretch(img, d, t, T, A):
     # 左侧：笔记本侧视 + 传感器随动（真实形态：传感器贴屏幕顶端）
     bx, by = 300, 720
     lid = 250
-    tilt = 88 * (0.5 - 0.5 * math.cos(t / T * math.pi * 1.05))
+    # 角度走"完整往返"：0 -> 88 -> 0 -> 88 ...，这样观众能看到效果
+    # 出去和收回来两个过程（上一版停在 88° 结束，看起来像"没有返回"）
+    phase = clamp(t / T)
+    # 完整往返：0 -> 88 -> 0 -> 88 -> 0，两个来回，观众能同时看到
+    # "拉伸出去"和"收回来"两个过程（上一版停在 88° 就结束，看着像没有返回）
+    tilt = 88 * (0.5 - 0.5 * math.cos(phase * math.pi * 4.0))
 
     d.rounded_rectangle([bx - 150, by, bx + 150, by + 22], radius=4, fill=(44, 50, 60))
     ang = math.radians(90 - tilt)
@@ -385,13 +511,17 @@ def sc_stretch(img, d, t, T, A):
     # 角度读数（等宽大字，左对齐）
     d.text((MARGIN, 250), "%5.1f" % tilt, font=mono(76), fill=INK)
     d.text((MARGIN + 236, 288), "deg", font=mono(24), fill=MUTED)
-    d.text((MARGIN, 348), "开合角", font=cn(18), fill=FAINT)
+    d.text((MARGIN, 348), "屏幕倾斜量", font=cn(18), fill=FAINT)
+    # 浓度严格按 PC 端的映射公式算，保证画面与实机一致：
+    #   |angle| <= deadband -> 0 ；否则 (|angle| - deadband) / (angle_open - deadband)
+    # 早期这里用了 tilt/88，与 angle_to_concentration(tilt, 90, 1.0) 不一致。
+    conc = clamp((abs(tilt) - DEADBAND) / max(1e-6, ANGLE_OPEN - DEADBAND))
 
     # 中间：真实着色器画面
     iw, ih = 1180, 664
     ix = W - MARGIN - iw
     iy = 250
-    fr = A.nearest(tilt)
+    fr = A.blend(tilt)
     sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     ImageDraw.Draw(sh).rounded_rectangle(
         [ix + 6, iy + 10, ix + iw + 6, iy + ih + 10], radius=6, fill=(0, 0, 0, 140))
@@ -420,14 +550,14 @@ def sc_stretch(img, d, t, T, A):
     d.text((gx, cy + gh + 14), "0°", font=mono(17), fill=FAINT)
     d.text((gx + gw - 30, cy + gh + 14), "88°", font=mono(17), fill=FAINT)
 
-    # 右侧：浓度条
+    # 右侧：浓度条（与 PC 端 angle_to_concentration 一致）
     bx2 = MARGIN + 700
     d.text((bx2, cy - 40), "玻璃浓度", font=cn(19), fill=MUTED)
     d.rectangle([bx2, cy + 14, bx2 + 420, cy + 30], outline=RULE, width=1)
-    d.rectangle([bx2 + 1, cy + 15, bx2 + 1 + int(418 * clamp(tilt / 88.0)), cy + 29],
-                fill=ACCENT)
-    d.text((bx2 + 440, cy + 12), "%d%%" % int(clamp(tilt / 88.0) * 100),
-           font=mono(22), fill=INK)
+    d.rectangle([bx2 + 1, cy + 15, bx2 + 1 + int(418 * conc), cy + 29], fill=ACCENT)
+    d.text((bx2 + 440, cy + 12), "%d%%" % int(conc * 100), font=mono(22), fill=INK)
+    d.text((bx2, cy + 52), "浓度 = (|角度| - 死区) / (量程 - 死区)   死区 %.0f°  量程 %.0f°"
+           % (DEADBAND, ANGLE_OPEN), font=cn(17), fill=FAINT)
 
 
 # ================================================================ 场景 4 原理

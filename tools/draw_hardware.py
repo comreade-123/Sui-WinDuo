@@ -52,11 +52,15 @@ def pxr(v, s):
 # SSD1306 的语义（字号 1 = 6x8 像素、字号 3 = 18x24 像素），最后整体乘 K
 # 放大到图层像素。这样位置与字号天然等比，不会出现文字挤在顶边或糊掉。
 def draw_ssd1306(img, x, y, s=1.0, alpha=1.0, screen="main", angle=42, pct=46,
-                 status="ok", mode="STD", calib_pct=63, glow=1.0):
+                 status="ok", mode="STD", calib_pct=63, glow=1.0, content=True):
     """SSD1306 0.96" OLED（I2C，0x3C）。
 
-    screen: "main"  主界面 —— 按固件 drawMainScreen() 的坐标
-            "calib" 校准界面 —— 按固件 drawCalibrationScreen() 的坐标
+    screen:  "main"  主界面 —— 按固件 drawMainScreen() 的坐标
+             "calib" 校准界面 —— 按固件 drawCalibrationScreen() 的坐标
+    content: False 时只画模块本体，不画屏幕内容 —— 这样视频里可以把
+             "屏幕"单独拿出来实时绘制，做出校准进度、角度滚动这类动态效果，
+             而不是贴一张永远不变的静态图。
+    返回 (模块宽, 模块高, 屏幕区域矩形)。
     """
     K = 2.1 * s                        # 逻辑像素 -> 图层像素
     def L(v):
@@ -82,7 +86,7 @@ def draw_ssd1306(img, x, y, s=1.0, alpha=1.0, screen="main", angle=42, pct=46,
                         fill=(5, 7, 10, A(alpha)),
                         outline=(40, 44, 52, A(alpha)), width=max(1, L(1)))
 
-    if glow > 0.02:
+    if glow > 0.02 and content:
         g = min(1.0, glow)
         ON = (176, 238, 255, A(g))
         DIMC = (116, 196, 228, A(g * 0.8))
@@ -139,7 +143,9 @@ def draw_ssd1306(img, x, y, s=1.0, alpha=1.0, screen="main", angle=42, pct=46,
         d.text((bx + L(10), y - L(17)), lab,
                font=F("consola.ttf", max(9, L(10))),
                fill=(196, 204, 214, A(alpha)), anchor="ms")
-    return (PW, PH)
+    # 一并报出屏幕玻璃区的矩形（相对模块左上角），
+    # 视频端用它在同一位置实时绘制动态屏幕内容
+    return (PW, PH, (gx0, gy0, gw, gh))
 
 
 # ================================================================ MPU6050
@@ -311,22 +317,23 @@ def export_layers(outdir):
     jobs = [
         # (名称, 画布宽, 画布高, 绘制函数)
         # 画布尺寸按模块实际占用 + 边距给足：早期版本给小了，
-        # OLED 屏幕和引脚标签被裁掉一半（用户看到的错位/不全就有这一份）。
+        # OLED 屏幕和引脚标签被裁掉一半（用户看到的"错位/不全"就有这一份）。
         ("esp32", 780, 440, lambda im: draw_esp32(im, 90, 60, 1.0)),
         ("mpu6050", 470, 340, lambda im: draw_mpu6050(im, 50, 50, 1.0)),
-        ("ssd1306_main", 620, 640,
-         lambda im: draw_ssd1306(im, 40, 60, 2.0, screen="main", angle=42, pct=46)),
-        ("ssd1306_calib", 620, 640,
-         lambda im: draw_ssd1306(im, 40, 60, 2.0, screen="calib", calib_pct=63)),
+        # OLED 只导出"空屏"模块：屏幕内容由视频端实时绘制，
+        # 这样校准进度、角度滚动这些动效才做得出来
+        ("ssd1306_blank", 620, 640,
+         lambda im: draw_ssd1306(im, 40, 60, 2.0, content=False)),
         ("button", 280, 280, lambda im: draw_button(im, 35, 35, 1.0)),
     ]
+    oled_meta = None
     for name, w, h, fn in jobs:
         # 两遍绘制：先在足够大的过渡画布上画一次，量出真实内容边界；
         # 再按边界 + 边距开最终画布重画一次。
         # 这样无论模块尺寸/字号怎么改，都不会出现"内容被裁掉一半"
         # （用户反馈的"错位/不全"里就包含这个问题）。
         probe = Image.new("RGBA", (w + 700, h + 700), (0, 0, 0, 0))
-        fn(probe)
+        info = fn(probe)
         bb = probe.split()[3].getbbox() or (0, 0, 1, 1)
         pad = 26
         cw = bb[2] - bb[0] + pad * 2
@@ -343,33 +350,56 @@ def export_layers(outdir):
         out.save(os.path.join(outdir, "hw_%s.png" % name))
         print("  %-16s -> hw_%s.png  %s" % (name, name, out.size))
 
+        if name == "ssd1306_blank" and info and len(info) == 3:
+            gx0, gy0, gw, gh = info[2]      # 屏幕区（相对模块左上角）
+            oled_meta = {
+                "layer": "hw_ssd1306_blank.png",
+                "layer_size": [cw, ch],
+                "screen": [gx0 - (bb[0] - pad), gy0 - (bb[1] - pad), gw, gh],
+                "module": [info[0], info[1]],
+            }
+
+    if oled_meta:
+        import json
+        with open(os.path.join(outdir, "oled_meta.json"), "w", encoding="utf-8") as f:
+            json.dump(oled_meta, f, indent=2)
+        print("  OLED 元数据 -> oled_meta.json  屏幕区 %s" % (oled_meta["screen"],))
+
 
 if __name__ == "__main__":
     import sys
     out = sys.argv[1] if len(sys.argv) > 1 else "docs/glass_seq"
     export_layers(out)
-    # 预览联系表，方便肉眼核对比例与屏幕内容
-    strip = Image.new("RGB", (1600, 700), (14, 16, 20))
-    e = Image.open(os.path.join(out, "hw_esp32.png")).convert("RGBA")
-    m = Image.open(os.path.join(out, "hw_mpu6050.png")).convert("RGBA")
-    o = Image.open(os.path.join(out, "hw_ssd1306_main.png")).convert("RGBA")
-    oc = Image.open(os.path.join(out, "hw_ssd1306_calib.png")).convert("RGBA")
-    strip.paste(e, (10, 200), e)
-    strip.paste(m, (780, 260), m)
-    strip.paste(o, (1200, 70), o)
-    dd = ImageDraw.Draw(strip)
-    dd.text((20, 20), "hardware layers v2  (proportions follow the real modules)",
-            font=F("consola.ttf", 20), fill=(190, 198, 208))
-    strip.save(os.path.join(out, "_hw_preview.png"))
-    # OLED 特写：检查屏幕内容是否可读，以及两种界面
-    big = Image.new("RGB", (o.size[0] * 2 + 60, o.size[1] + 70), (14, 16, 20))
-    # OLED 特写：两种界面并排，确认屏幕文字清晰可读
-    ow, oh = o.size
-    big = Image.new("RGB", (ow * 2 + 60, oh + 70), (14, 16, 20))
-    big.paste(o, (10, 10), o)
-    big.paste(oc, (ow + 40, 10), oc)
+
+    # OLED 特写：直接现场画带内容的两块屏（模块本体来自 blank 图层），
+    # 用来核对屏幕文字是否清晰、两种界面是否正确
+    blank = Image.open(os.path.join(out, "hw_ssd1306_blank.png")).convert("RGBA")
+    panels = []
+    for sc_name in ("main", "calib"):
+        lay = blank.copy()
+        # 屏幕内容画在模块内部：这里直接复用 draw_ssd1306 的内容绘制路径
+        tmp = Image.new("RGBA", lay.size, (0, 0, 0, 0))
+        draw_ssd1306(tmp, 40, 60, 2.0, screen=sc_name, angle=42, pct=46,
+                     calib_pct=63, content=True)
+        # 只取屏幕区域的像素叠到 blank 上
+        meta_path = os.path.join(out, "oled_meta.json")
+        if os.path.exists(meta_path):
+            import json
+            m = json.load(open(meta_path, encoding="utf-8"))
+            sx, sy, sw, sh = m["screen"]
+            if sc_name == "main":
+                # tmp 与 blank 同尺寸同原点，直接按屏幕区相交
+                lay.alpha_composite(tmp.crop((sx, sy, sx + sw, sy + sh)), (sx, sy))
+            else:
+                lay.alpha_composite(tmp.crop((sx, sy, sx + sw, sy + sh)), (sx, sy))
+        panels.append(lay)
+
+    ow, oh = panels[0].size
+    big = Image.new("RGB", (ow * 2 + 80, oh + 80), (14, 16, 20))
+    big.paste(panels[0], (20, 20), panels[0])
+    big.paste(panels[1], (ow + 60, 20), panels[1])
     d2 = ImageDraw.Draw(big)
-    d2.text((20, oh + 30), "主界面 main", font=F("msyh.ttc", 22), fill=(150, 158, 168))
-    d2.text((ow + 50, oh + 30), "校准界面 calib", font=F("msyh.ttc", 22), fill=(150, 158, 168))
+    d2.text((30, oh + 34), "主界面 main", font=F("msyh.ttc", 24), fill=(150, 158, 168))
+    d2.text((ow + 70, oh + 34), "校准界面 calib", font=F("msyh.ttc", 24), fill=(150, 158, 168))
     big.save(os.path.join(out, "_oled_zoom.png"))
-    print("  预览 -> %s/_hw_preview.png  %s/_oled_zoom.png" % (out, out))
+    print("  预览 -> %s/_oled_zoom.png" % out)
