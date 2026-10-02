@@ -1,0 +1,24 @@
+{
+  "name": "winduo-ethanmaven",
+  "version": "1.0.0",
+  "description": "![License: MIT](https://img.shields.io/badge/License-MIT-green.svg) ![Platform: Arduino IDE](https://img.shields.io/badge/Platform-Arduino%20IDE-blue.svg) ![Board: ESP32-WROOM-32E](https://img.shields.io/badge/Board-ESP32--WROOM--32E-orange.svg) ![Status: awaiting hardware validation](https://img.shields.io/badge/Status-awaiting%20hardware%20validation-yellow.svg)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/comreade-123/Sui-WinDuo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/comreade-123/Sui-WinDuo/issues"
+  },
+  "homepage": "https://github.com/comreade-123/Sui-WinDuo#readme"
+}
